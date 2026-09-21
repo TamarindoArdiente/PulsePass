@@ -17,7 +17,15 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 
     List<Ticket> findByUserEmailAndStatus(String userEmail, TicketStatus status);
 
-    List<Ticket> findByEventCodeAndStatus(String eventCode, TicketStatus status);
+    @Query("""
+            select t
+            from Ticket t
+            join t.event e
+            where e.eventCode = :eventCode
+            and t.status = :status
+            """)
+    List<Ticket> findByEventCodeAndStatus(@Param("eventCode") String eventCode,
+                                           @Param("status") TicketStatus status);
 
      @Query("""
             select count(t)
@@ -37,4 +45,3 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
             """)
     List<Ticket> findByEventDateAfter(@Param("date") LocalDateTime date);
 }
-    

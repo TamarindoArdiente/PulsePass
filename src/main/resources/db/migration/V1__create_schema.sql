@@ -1,5 +1,5 @@
 CREATE TABLE venues(
-    id BIGINT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     code VARCHAR(50) NOT NULL,
     name VARCHAR(100) NOT NULL,
     city VARCHAR(100) NOT NULL,
@@ -12,7 +12,7 @@ CREATE TABLE venues(
 );
 
 CREATE TABLE events(
-    id BIGINT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     event_code  VARCHAR(50) NOT NULL,
     name VARCHAR(50) NOT NULL,
     description TEXT,
@@ -62,29 +62,33 @@ CREATE TABLE event_artists (
 );
 
 CREATE TABLE users(
-    id BIGINT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     user_name VARCHAR(100) NOT NULL,
     email VARCHAR(100) NOT NULL,
     active BOOLEAN NOT NULL,
+
+    CONSTRAINT uk_users_username UNIQUE (user_name),
+    CONSTRAINT uk_users_email UNIQUE (email)
 );
 
 CREATE TABLE user_profiles(
-    id BIGINT PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    phone VARCHAR(10) NOT NULL,
-    city VARCHAR(50) NOT NULL,
-    birth_date TIMESTAMP NOT NULL,
-    user_id BIGINT NOT NULL, 
+    phone VARCHAR(20),
+    city VARCHAR(50),
+    birth_date DATE,
+    user_id BIGINT NOT NULL,
 
-    CONSTRAINT fk_profile_user_id FOREIGN KEY (user_id) REFERENCES users (id),
+    CONSTRAINT uk_user_profiles_user_id UNIQUE (user_id),
+    CONSTRAINT fk_profile_user_id FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
 CREATE TABLE tickets(
-    id BIGINT PRIMARY KEY, 
+    id BIGSERIAL PRIMARY KEY,
     ticket_code VARCHAR(100) NOT NULL,
     type VARCHAR(30) NOT NULL,
-    price INTEGER NOT NULL,
+    price NUMERIC(10,2) NOT NULL,
     status VARCHAR(30) NOT NULL,
     purchase_date TIMESTAMP NOT NULL,
     user_id BIGINT NOT NULL,
@@ -94,17 +98,18 @@ CREATE TABLE tickets(
     CONSTRAINT fk_ticket_user_id FOREIGN KEY (user_id) REFERENCES users (id),
     CONSTRAINT fk_ticket_event_id FOREIGN KEY (event_id) REFERENCES events (id),
     CONSTRAINT chk_status_ticket CHECK (status IN (
-        'USED'
+        'USED',
         'PAID',
         'CANCELLED',
         'RESERVED'
-    ))
-    CONSTRAINT chk_type_ticket CHECK (STATUS IN(
-        'GENERAL', 
-        'VIP', 
-        'BACKSTAGE', 
+    )),
+    CONSTRAINT chk_type_ticket CHECK (type IN(
+        'GENERAL',
+        'VIP',
+        'BACKSTAGE',
         'STUDENT'
-    ))
+    )),
+    CONSTRAINT chk_ticket_price_not_negative CHECK (price >= 0)
 );
 
 --index
