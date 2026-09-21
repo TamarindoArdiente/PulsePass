@@ -83,11 +83,6 @@ public class Event {
         artist.getEvents().remove(this);
     }
 
-     public void addEvent(Event event) {
-        events.add(event);
-        event.setVenue(this);
-    }
-
     public Long getId() {
         return id;
     }
