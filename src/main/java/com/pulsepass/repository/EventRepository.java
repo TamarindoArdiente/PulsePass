@@ -15,7 +15,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     Boolean existsByEventCode(String eventCode);
 
-    List<Event> findByStatusOrderByEventDate(EventStatus status);
+    List<Event> findByStatusOrderByEventDateAsc(EventStatus status);
 
     List<Event> findByVenueCode(String venueCode);
 

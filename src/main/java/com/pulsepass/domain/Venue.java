@@ -51,6 +51,11 @@ public class Venue {
         return id;
     }
 
+     public void addEvent(Event event) {
+        events.add(event);
+        event.setVenue(this);
+    }
+
     public String getCode() {
         return code;
     }
@@ -102,4 +107,5 @@ public class Venue {
     public List<Event> getEvents() {
         return events;
     }
+    
 }
