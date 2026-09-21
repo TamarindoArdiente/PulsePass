@@ -64,14 +64,13 @@ public class Event {
     }
 
     public Event(String eventCode, String name, EventCategory category, EventStatus status,
-                 LocalDateTime eventDate, Integer minimumAge, Venue venue) {
+                 LocalDateTime eventDate, Integer minimumAge) {
         this.eventCode = eventCode;
         this.name = name;
         this.category = category;
         this.status = status;
         this.eventDate = eventDate;
         this.minimumAge = minimumAge;
-        this.venue = venue;
     }
 
     public void addArtist(Artist artist) {
@@ -82,6 +81,11 @@ public class Event {
     public void removeArtist(Artist artist) {
         this.artists.remove(artist);
         artist.getEvents().remove(this);
+    }
+
+     public void addEvent(Event event) {
+        events.add(event);
+        event.setVenue(this);
     }
 
     public Long getId() {
