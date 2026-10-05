@@ -7,4 +7,8 @@ import java.util.*;;
 
 public interface ArtistRepository extends JpaRepository<Artist, Long> {
     Optional<Artist> findByStageName(String stageName);
+
+     Optional<Artist> findByStageNameIgnoreCase(String stageName);
+
+    List<Artist> findByActiveTrueOrderByStageNameAsc();
 }
