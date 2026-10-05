@@ -8,11 +8,7 @@ import org.mapstruct.Mapping;
 
 import java.util.List;
 
-/**
- * SRV-001: nunca expone Venue ni Set<Artist> directamente.
- * venue se aplana a venueCode/venueName; artists se mapea a List<ArtistResponse>
- * reutilizando ArtistMapper.
- */
+
 @Mapper(componentModel = "spring", uses = ArtistMapper.class)
 public interface EventMapper {
 

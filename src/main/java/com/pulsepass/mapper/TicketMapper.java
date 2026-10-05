@@ -7,9 +7,7 @@ import org.mapstruct.Mapping;
 
 import java.util.List;
 
-/**
- * SRV-001: no expone User ni Event directamente (sección 34 del PRD).
- */
+
 @Mapper(componentModel = "spring")
 public interface TicketMapper {
 
