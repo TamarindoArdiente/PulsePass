@@ -32,25 +32,20 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public UserResponse register(RegisterUserRequest request) {
-        // BR-USER-001: username único
         if (userRepository.existsByUsername(request.username())) {
             throw new DuplicateResourceException("Username already exists: " + request.username());
         }
 
-        // BR-USER-002: email único ignorando mayúsculas/minúsculas
         if (userRepository.existsByEmailIgnoreCase(request.email())) {
             throw new DuplicateResourceException("Email already exists: " + request.email());
         }
 
-        // BR-USER-005: birthDate no puede ser futura
         if (request.birthDate() != null && request.birthDate().isAfter(LocalDate.now(clock))) {
             throw new BusinessRuleException("Birth date cannot be in the future");
         }
 
-        // BR-USER-003: todo usuario nuevo inicia activo (lo garantiza el constructor de User)
         User user = new User(request.username(), request.email());
 
-        // BR-USER-004: User y UserProfile se crean en la misma transacción
         UserProfile profile = new UserProfile(request.firstName(), request.lastName());
         profile.setPhone(request.phone());
         profile.setCity(request.city());

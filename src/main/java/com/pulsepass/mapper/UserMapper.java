@@ -5,11 +5,7 @@ import com.pulsepass.dto.response.UserResponse;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 
-/**
- * SRV-001: no expone UserProfile directamente; sus campos se aplanan
- * dentro de UserResponse. MapStruct maneja el caso userProfile == null
- * generando el chequeo de nulidad automáticamente.
- */
+
 @Mapper(componentModel = "spring")
 public interface UserMapper {
 
