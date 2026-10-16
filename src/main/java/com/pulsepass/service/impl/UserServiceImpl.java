@@ -10,6 +10,7 @@ import com.pulsepass.exception.ResourceNotFoundException;
 import com.pulsepass.mapper.UserMapper;
 import com.pulsepass.repository.UserRepository;
 import com.pulsepass.service.UserService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,11 +23,14 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final Clock clock;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserServiceImpl(UserRepository userRepository, UserMapper userMapper, Clock clock) {
+    public UserServiceImpl(UserRepository userRepository, UserMapper userMapper, Clock clock,
+                           PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.userMapper = userMapper;
         this.clock = clock;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -44,7 +48,10 @@ public class UserServiceImpl implements UserService {
             throw new BusinessRuleException("Birth date cannot be in the future");
         }
 
+        // El registro público siempre crea usuarios con rol USER (valor por defecto de la entidad)
+        // y la contraseña se guarda únicamente como hash BCrypt.
         User user = new User(request.username(), request.email());
+        user.setPassword(passwordEncoder.encode(request.password()));
 
         UserProfile profile = new UserProfile(request.firstName(), request.lastName());
         profile.setPhone(request.phone());

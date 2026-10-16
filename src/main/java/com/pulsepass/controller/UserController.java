@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +36,7 @@ public class UserController {
         return ResponseEntity.ok(userService.findByEmail(email));
     }
 
+    @PreAuthorize("hasRole('ADMIN') or #username == authentication.name")
     @GetMapping("/by-username")
     public ResponseEntity<UserResponse> findByUsername(
             @RequestParam @NotBlank(message = "Username is required") String username) {

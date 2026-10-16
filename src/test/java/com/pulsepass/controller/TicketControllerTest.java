@@ -9,6 +9,7 @@ import com.pulsepass.exception.ResourceNotFoundException;
 import com.pulsepass.service.TicketService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -30,6 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(TicketController.class)
+@AutoConfigureMockMvc(addFilters = false) // las reglas de seguridad se prueban en SecurityRulesTest
 class TicketControllerTest {
 
     private static final String VALID_BODY = """

@@ -1,6 +1,7 @@
 package com.pulsepass.service;
 
 import com.pulsepass.domain.User;
+import com.pulsepass.domain.UserRole;
 import com.pulsepass.dto.request.RegisterUserRequest;
 import com.pulsepass.dto.response.UserResponse;
 import com.pulsepass.exception.BusinessRuleException;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -34,6 +36,9 @@ class UserServiceImplTest {
     @Mock
     private UserMapper userMapper;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     private UserServiceImpl userService;
 
     private final Clock fixedClock =
@@ -41,12 +46,12 @@ class UserServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserServiceImpl(userRepository, userMapper, fixedClock);
+        userService = new UserServiceImpl(userRepository, userMapper, fixedClock, passwordEncoder);
     }
 
     private RegisterUserRequest validRequest() {
         return new RegisterUserRequest(
-                "juanp", "juan.perez@email.com", "Juan", "Perez",
+                "juanp", "juan.perez@email.com", "Str0ng-Passw0rd", "Juan", "Perez",
                 "3001234567", "Santa Marta", LocalDate.of(2000, 5, 10));
     }
 
@@ -55,6 +60,7 @@ class UserServiceImplTest {
         RegisterUserRequest request = validRequest();
         when(userRepository.existsByUsername("juanp")).thenReturn(false);
         when(userRepository.existsByEmailIgnoreCase("juan.perez@email.com")).thenReturn(false);
+        when(passwordEncoder.encode("Str0ng-Passw0rd")).thenReturn("{bcrypt}hash");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userMapper.toResponse(any(User.class))).thenAnswer(invocation -> {
             User u = invocation.getArgument(0);
@@ -76,6 +82,23 @@ class UserServiceImplTest {
         User savedUser = captor.getValue();
         assertThat(savedUser.getUserProfile()).isNotNull();
         assertThat(savedUser.getUserProfile().getUser()).isEqualTo(savedUser);
+    }
+
+    @Test
+    void register_guardaPasswordCodificadaYRolUser() {
+        RegisterUserRequest request = validRequest();
+        when(userRepository.existsByUsername("juanp")).thenReturn(false);
+        when(userRepository.existsByEmailIgnoreCase("juan.perez@email.com")).thenReturn(false);
+        when(passwordEncoder.encode("Str0ng-Passw0rd")).thenReturn("{bcrypt}hash");
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        userService.register(request);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertThat(captor.getValue().getPassword()).isEqualTo("{bcrypt}hash");
+        assertThat(captor.getValue().getPassword()).isNotEqualTo("Str0ng-Passw0rd");
+        assertThat(captor.getValue().getRole()).isEqualTo(UserRole.USER);
     }
 
     @Test
@@ -102,7 +125,7 @@ class UserServiceImplTest {
     @Test
     void register_birthDateFutura_lanzaBusinessRuleException() {
         RegisterUserRequest request = new RegisterUserRequest(
-                "juanp", "juan.perez@email.com", "Juan", "Perez",
+                "juanp", "juan.perez@email.com", "Str0ng-Passw0rd", "Juan", "Perez",
                 "3001234567", "Santa Marta", LocalDate.now(fixedClock).plusDays(1));
         when(userRepository.existsByUsername("juanp")).thenReturn(false);
         when(userRepository.existsByEmailIgnoreCase("juan.perez@email.com")).thenReturn(false);

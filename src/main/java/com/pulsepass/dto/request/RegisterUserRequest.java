@@ -17,6 +17,10 @@ public record RegisterUserRequest(
         @Size(max = 100, message = "Email must have at most 100 characters")
         String email,
 
+        @NotBlank(message = "Password is required")
+        @Size(min = 8, max = 72, message = "Password must have between 8 and 72 characters")
+        String password,
+
         @NotBlank(message = "First name is required")
         @Size(max = 50, message = "First name must have at most 50 characters")
         String firstName,
@@ -34,5 +38,9 @@ public record RegisterUserRequest(
         @NotNull(message = "Birth date is required")
         LocalDate birthDate
 ) {
-}
 
+    @Override
+    public String toString() {
+        return "RegisterUserRequest[username=" + username + ", email=" + email + ", password=***]";
+    }
+}
