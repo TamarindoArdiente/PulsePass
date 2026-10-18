@@ -2,7 +2,6 @@
 
 Plataforma de eventos, artistas y entradas. Java 21 · Spring Boot 4 · PostgreSQL · Flyway · MapStruct · Spring Security + JWT (JJWT).
 
-Fases: **1** Persistencia → **2** Servicios → **3** Controladores REST → **4** Seguridad (JWT).
 
 ## Arquitectura
 
@@ -49,25 +48,6 @@ El registro público (`POST /api/users`) siempre crea usuarios con rol `USER`. L
 
 Sin token o con token inválido/expirado → **401**. Token válido sin el rol requerido → **403**. Ambos con el contrato `ErrorResponse`.
 
-### Probar manualmente
-
-```bash
-# 1) Registrar usuario (público)
-curl -X POST localhost:8080/api/users -H 'Content-Type: application/json' -d '{
-  "username":"andrea","email":"andrea@example.com","password":"Str0ng-Passw0rd",
-  "firstName":"Andrea","lastName":"Gomez","birthDate":"1995-05-10"}'
-
-# 2) Login -> accessToken
-curl -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json' \
-  -d '{"username":"andrea","password":"Str0ng-Passw0rd"}'
-
-# 3) Endpoint autenticado
-curl localhost:8080/api/profile -H "Authorization: Bearer <accessToken>"
-
-# 4) USER intentando una operación de ORGANIZER/ADMIN -> 403
-curl -X POST localhost:8080/api/events -H "Authorization: Bearer <accessToken>" \
-  -H 'Content-Type: application/json' -d '{}'
-```
 
 ### Base de datos
 
@@ -139,3 +119,5 @@ export JWT_SECRET=$(openssl rand -base64 32)
 - `SecurityRulesTest`: cadena de seguridad real (login, 401, 403, token expirado/manipulado, roles, `@PreAuthorize`) con los Services mockeados.
 - `JwtServiceTest`: generación/validación de tokens, expirado, otra clave, otro issuer, payload manipulado.
 - Las pruebas de persistencia (`PulsePassIntegrationTest`, `PulsepassApplicationTests`) usan Testcontainers y requieren Docker. El secreto JWT de pruebas está en `src/test/resources/config/application.properties`.
+
+README generado a traves de IA
