@@ -7,6 +7,7 @@ import com.pulsepass.exception.ResourceNotFoundException;
 import com.pulsepass.service.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -25,12 +26,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(UserController.class)
+@AutoConfigureMockMvc(addFilters = false) // las reglas de seguridad se prueban en SecurityRulesTest
 class UserControllerTest {
 
     private static final String VALID_BODY = """
             {
               "username": "andrea",
               "email": "andrea@example.com",
+              "password": "Str0ng-Passw0rd",
               "firstName": "Andrea",
               "lastName": "Gómez",
               "phone": "3001234567",
@@ -85,9 +88,21 @@ class UserControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.details.username").exists())
                 .andExpect(jsonPath("$.details.email").exists())
+                .andExpect(jsonPath("$.details.password").exists())
                 .andExpect(jsonPath("$.details.firstName").exists())
                 .andExpect(jsonPath("$.details.lastName").exists())
                 .andExpect(jsonPath("$.details.birthDate").exists());
+
+        verify(userService, never()).register(any());
+    }
+
+    @Test
+    void TEST_CTRL_USR_002d_shortPassword_returns400AndDoesNotCallService() throws Exception {
+        String body = VALID_BODY.replace("Str0ng-Passw0rd", "short");
+
+        mockMvc.perform(post("/api/users").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.password").exists());
 
         verify(userService, never()).register(any());
     }
