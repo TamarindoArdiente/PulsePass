@@ -150,6 +150,9 @@ public class EventServiceImpl implements EventService {
     @Override
     @Transactional(readOnly = true)
     public List<EventSummaryResponse> findByArtist(String stageName) {
-        return eventMapper.toSummaryList(eventRepository.findByArtistStageName(stageName));
+        // Consulta pública: los borradores no se exponen.
+        return eventMapper.toSummaryList(eventRepository.findByArtistStageName(stageName).stream()
+                .filter(event -> event.getStatus() != EventStatus.DRAFT)
+                .toList());
     }
 }

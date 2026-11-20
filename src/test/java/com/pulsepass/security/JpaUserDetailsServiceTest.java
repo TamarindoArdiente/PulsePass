@@ -38,7 +38,7 @@ class JpaUserDetailsServiceTest {
     @Test
     void activeUserIsLoadedWithHashAndRole() {
         when(userRepository.findByUsername("andrea"))
-                .thenReturn(Optional.of(user("{bcrypt}hash", UserRole.ORGANIZER, true)));
+                .thenReturn(Optional.of(user("{bcrypt}hash", UserRole.STAFF, true)));
 
         UserDetails details = service.loadUserByUsername("andrea");
 
@@ -46,7 +46,29 @@ class JpaUserDetailsServiceTest {
         assertThat(details.getPassword()).isEqualTo("{bcrypt}hash");
         assertThat(details.isEnabled()).isTrue();
         assertThat(details.getAuthorities()).extracting(GrantedAuthority::getAuthority)
-                .containsExactly("ROLE_ORGANIZER");
+                .containsExactly("ROLE_STAFF");
+    }
+
+    @Test
+    void principalCarriesEmailForOwnershipChecks() {
+        when(userRepository.findByUsername("andrea"))
+                .thenReturn(Optional.of(user("{bcrypt}hash", UserRole.USER, true)));
+
+        UserDetails details = service.loadUserByUsername("andrea");
+
+        assertThat(details).isInstanceOf(AppUserDetails.class);
+        assertThat(((AppUserDetails) details).getEmail()).isEqualTo("andrea@example.com");
+    }
+
+    @Test
+    void userCanBeLoadedByEmailAndKeepsRealUsername() {
+        when(userRepository.findByUsername("Andrea@Example.com")).thenReturn(Optional.empty());
+        when(userRepository.findByEmailIgnoreCase("Andrea@Example.com"))
+                .thenReturn(Optional.of(user("{bcrypt}hash", UserRole.USER, true)));
+
+        UserDetails details = service.loadUserByUsername("Andrea@Example.com");
+
+        assertThat(details.getUsername()).isEqualTo("andrea");
     }
 
     @Test

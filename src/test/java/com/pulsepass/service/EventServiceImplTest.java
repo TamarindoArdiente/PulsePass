@@ -223,4 +223,23 @@ class EventServiceImplTest {
                 .isInstanceOf(BusinessRuleException.class);
         verify(eventRepository, never()).save(any());
     }
+
+    @Test
+    void findByArtist_noExponeBorradores() {
+        Event draft = new Event("DRAFT-1", "Borrador", EventCategory.MUSIC,
+                EventStatus.DRAFT, LocalDateTime.now(fixedClock).plusMonths(6), 0);
+        Event published = new Event("PUB-1", "Publicado", EventCategory.MUSIC,
+                EventStatus.PUBLISHED, LocalDateTime.now(fixedClock).plusMonths(6), 0);
+        Event soldOut = new Event("SOLD-1", "Agotado", EventCategory.MUSIC,
+                EventStatus.SOLD_OUT, LocalDateTime.now(fixedClock).plusMonths(6), 0);
+        List<com.pulsepass.dto.response.EventSummaryResponse> mapped = List.of();
+
+        when(eventRepository.findByArtistStageName("Solar Beat")).thenReturn(List.of(draft, published, soldOut));
+        when(eventMapper.toSummaryList(List.of(published, soldOut))).thenReturn(mapped);
+
+        List<com.pulsepass.dto.response.EventSummaryResponse> result = eventService.findByArtist("Solar Beat");
+
+        assertThat(result).isSameAs(mapped);
+        verify(eventMapper).toSummaryList(List.of(published, soldOut));
+    }
 }

@@ -20,7 +20,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -44,15 +43,17 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 
 @WebMvcTest
-@Import({SecurityConfig.class, JwtService.class, AuthenticationService.class})
+@Import({SecurityConfig.class, JwtService.class, AuthenticationService.class, AccessPolicy.class})
 class SecurityRulesTest {
 
     private static final String EVENT_BODY = """
@@ -111,7 +112,8 @@ class SecurityRulesTest {
     private MockMvc mockMvc;
 
     private UserDetails student;
-    private UserDetails organizer;
+    private UserDetails staff;
+    private UserDetails otherUser;
     private UserDetails admin;
 
     @BeforeEach
@@ -119,20 +121,20 @@ class SecurityRulesTest {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
 
         student = userDetails("student", "student123", "USER", true);
-        organizer = userDetails("organizer", "organizer123", "ORGANIZER", true);
+        otherUser = userDetails("andrea", "andrea123", "USER", true);
+        staff = userDetails("staff", "staff123", "STAFF", true);
         admin = userDetails("admin", "admin123", "ADMIN", true);
 
         when(userDetailsService.loadUserByUsername("student")).thenReturn(student);
-        when(userDetailsService.loadUserByUsername("organizer")).thenReturn(organizer);
+        when(userDetailsService.loadUserByUsername("student@example.com")).thenReturn(student);
+        when(userDetailsService.loadUserByUsername("andrea")).thenReturn(otherUser);
+        when(userDetailsService.loadUserByUsername("staff")).thenReturn(staff);
         when(userDetailsService.loadUserByUsername("admin")).thenReturn(admin);
     }
 
     private UserDetails userDetails(String username, String rawPassword, String role, boolean enabled) {
-        return User.withUsername(username)
-                .password(passwordEncoder.encode(rawPassword))
-                .roles(role)
-                .disabled(!enabled)
-                .build();
+        return new AppUserDetails((long) username.hashCode(), username, username + "@example.com",
+                passwordEncoder.encode(rawPassword), enabled, role);
     }
 
     private String bearer(UserDetails user) {
@@ -144,9 +146,9 @@ class SecurityRulesTest {
                 "First", "Last", null, null, LocalDate.of(1995, 5, 10));
     }
 
-    private EventResponse eventResponse() {
+    private EventResponse eventResponse(EventStatus status) {
         return new EventResponse(1L, "CMF-2026", "Caribbean Music Fest 2026", "Festival",
-                EventCategory.MUSIC, EventStatus.DRAFT, LocalDateTime.of(2030, 12, 1, 20, 0), 18,
+                EventCategory.MUSIC, status, LocalDateTime.of(2030, 12, 1, 20, 0), 18,
                 "VEN-SMR-01", "Marina Convention Center", List.of());
     }
 
@@ -161,12 +163,30 @@ class SecurityRulesTest {
     void login_correct_returnsJwt() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"student\",\"password\":\"student123\"}"))
+                        .content("{\"identifier\":\"student\",\"password\":\"student123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresIn").value((int) jwtProperties.expiration().toSeconds()));
+    }
+
+    @Test
+    void login_withEmailAsIdentifier_returnsJwt() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"identifier\":\"student@example.com\",\"password\":\"student123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty());
+    }
+
+    @Test
+    void login_legacyUsernameField_isStillAccepted() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"student\",\"password\":\"student123\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty());
     }
 
     @Test
@@ -208,9 +228,9 @@ class SecurityRulesTest {
     void login_blankFields_returns400() throws Exception {
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"\",\"password\":\"\"}"))
+                        .content("{\"identifier\":\"\",\"password\":\"\"}"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.details.username").exists())
+                .andExpect(jsonPath("$.details.identifier").exists())
                 .andExpect(jsonPath("$.details.password").exists());
 
         verifyNoInteractions(userDetailsService);
@@ -320,6 +340,59 @@ class SecurityRulesTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    //  /api/auth/me
+
+    @Test
+    void me_withValidToken_returnsIdentityAndRolesWithoutSecrets() throws Exception {
+        mockMvc.perform(get("/api/auth/me").header("Authorization", bearer(staff)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("staff"))
+                .andExpect(jsonPath("$.identifier").value("staff"))
+                .andExpect(jsonPath("$.email").value("staff@example.com"))
+                .andExpect(jsonPath("$.roles[0]").value("STAFF"))
+                .andExpect(jsonPath("$.roles.length()").value(1))
+                .andExpect(jsonPath("$.password").doesNotExist());
+    }
+
+    @Test
+    void me_withoutToken_returns401() throws Exception {
+        mockMvc.perform(get("/api/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.status").value(401));
+    }
+
+    @Test
+    void me_withTamperedToken_returns401() throws Exception {
+        String[] parts = jwtService.generateToken(student).split("\\.");
+        char[] signature = parts[2].toCharArray();
+        int middle = signature.length / 2;
+        signature[middle] = signature[middle] == 'A' ? 'B' : 'A';
+        String tampered = parts[0] + "." + parts[1] + "." + new String(signature);
+
+        mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + tampered))
+                .andExpect(status().isUnauthorized());
+    }
+
+    //  CORS (frontend)
+
+    @Test
+    void cors_preflightFromAllowedOrigin_isAcceptedWithoutToken() throws Exception {
+        mockMvc.perform(options("/api/tickets")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+    }
+
+    @Test
+    void cors_preflightFromUnknownOrigin_isRejected() throws Exception {
+        mockMvc.perform(options("/api/tickets")
+                        .header("Origin", "http://evil.example")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden());
+    }
+
     //  roles (403)
 
     @Test
@@ -337,19 +410,19 @@ class SecurityRulesTest {
     }
 
     @Test
-    void organizer_canCreateEvent_returns201() throws Exception {
-        when(eventService.create(any())).thenReturn(eventResponse());
-
+    void staff_cannotCreateEvent_returns403() throws Exception {
         mockMvc.perform(post("/api/events")
-                        .header("Authorization", bearer(organizer))
+                        .header("Authorization", bearer(staff))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(EVENT_BODY))
-                .andExpect(status().isCreated());
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(eventService);
     }
 
     @Test
     void admin_canCreateEvent_returns201() throws Exception {
-        when(eventService.create(any())).thenReturn(eventResponse());
+        when(eventService.create(any())).thenReturn(eventResponse(EventStatus.DRAFT));
 
         mockMvc.perform(post("/api/events")
                         .header("Authorization", bearer(admin))
@@ -367,76 +440,174 @@ class SecurityRulesTest {
     }
 
     @Test
-    void user_cannotPublishEvent_returns403_organizerCan() throws Exception {
-        when(eventService.publish("CMF-2026")).thenReturn(eventResponse());
+    void publishAndAddArtist_areAdminOnly() throws Exception {
+        when(eventService.publish("CMF-2026")).thenReturn(eventResponse(EventStatus.PUBLISHED));
+        when(eventService.addArtist("CMF-2026", 1L)).thenReturn(eventResponse(EventStatus.DRAFT));
 
-        mockMvc.perform(patch("/api/events/CMF-2026/publish").header("Authorization", bearer(student)))
-                .andExpect(status().isForbidden());
+        for (UserDetails denied : List.of(student, staff)) {
+            mockMvc.perform(patch("/api/events/CMF-2026/publish").header("Authorization", bearer(denied)))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/events/CMF-2026/artists/1").header("Authorization", bearer(denied)))
+                    .andExpect(status().isForbidden());
+        }
         verify(eventService, never()).publish(any());
+        verify(eventService, never()).addArtist(any(), any());
 
-        mockMvc.perform(patch("/api/events/CMF-2026/publish").header("Authorization", bearer(organizer)))
+        mockMvc.perform(patch("/api/events/CMF-2026/publish").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/events/CMF-2026/artists/1").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk());
     }
 
-    @Test
-    void user_cannotAddArtist_returns403() throws Exception {
-        mockMvc.perform(post("/api/events/CMF-2026/artists/1").header("Authorization", bearer(student)))
-                .andExpect(status().isForbidden());
+    //  visibilidad de eventos
 
-        verifyNoInteractions(eventService);
+    @Test
+    void eventDetail_published_isPublic() throws Exception {
+        when(eventService.findByCode("CMF-2026")).thenReturn(eventResponse(EventStatus.PUBLISHED));
+
+        mockMvc.perform(get("/api/events/CMF-2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
     }
 
     @Test
-    void paidTicketsByEvent_isAdminOnly() throws Exception {
+    void eventDetail_draft_is404ForVisitorAndUser_butVisibleToStaffAndAdmin() throws Exception {
+        when(eventService.findByCode("CMF-2026")).thenReturn(eventResponse(EventStatus.DRAFT));
+
+        mockMvc.perform(get("/api/events/CMF-2026"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.name").doesNotExist());
+        mockMvc.perform(get("/api/events/CMF-2026").header("Authorization", bearer(student)))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/events/CMF-2026").header("Authorization", bearer(staff)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+        mockMvc.perform(get("/api/events/CMF-2026").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk());
+    }
+
+    //  tickets: roles y propiedad
+
+    @Test
+    void paidTicketsByEvent_isStaffOrAdminOnly() throws Exception {
         when(ticketService.findPaidTicketsByEvent("CMF-2026")).thenReturn(List.of(ticketResponse(TicketStatus.PAID)));
 
         mockMvc.perform(get("/api/events/CMF-2026/tickets/paid").header("Authorization", bearer(student)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/events/CMF-2026/tickets/paid").header("Authorization", bearer(organizer)))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/events/CMF-2026/tickets/paid").header("Authorization", bearer(admin)))
+        mockMvc.perform(get("/api/events/CMF-2026/tickets/paid").header("Authorization", bearer(staff)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].status").value("PAID"));
+        mockMvc.perform(get("/api/events/CMF-2026/tickets/paid").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk());
     }
 
     @Test
-    void markTicketAsUsed_requiresOrganizerOrAdmin() throws Exception {
+    void markTicketAsUsed_requiresStaffOrAdmin() throws Exception {
         when(ticketService.markAsUsed("TKT-001")).thenReturn(ticketResponse(TicketStatus.USED));
 
         mockMvc.perform(patch("/api/tickets/TKT-001/use").header("Authorization", bearer(student)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(patch("/api/tickets/TKT-001/use").header("Authorization", bearer(organizer)))
+        mockMvc.perform(patch("/api/tickets/TKT-001/use").header("Authorization", bearer(staff)))
+                .andExpect(status().isOk());
+        mockMvc.perform(patch("/api/tickets/TKT-001/use").header("Authorization", bearer(admin)))
                 .andExpect(status().isOk());
     }
 
     @Test
-    void ticketPurchaseAndCancel_requireAuthentication_butAnyRole() throws Exception {
+    void purchase_isForUsersOnly_andOnlyForTheirOwnEmail() throws Exception {
         when(ticketService.purchase(any())).thenReturn(ticketResponse(TicketStatus.PAID));
-        when(ticketService.cancel("TKT-001")).thenReturn(ticketResponse(TicketStatus.CANCELLED));
-        String purchase = "{\"userEmail\":\"andrea@example.com\",\"eventCode\":\"CMF-2026\",\"type\":\"GENERAL\"}";
+        String own = "{\"userEmail\":\"student@example.com\",\"eventCode\":\"CMF-2026\",\"type\":\"GENERAL\"}";
+        String foreign = "{\"userEmail\":\"andrea@example.com\",\"eventCode\":\"CMF-2026\",\"type\":\"GENERAL\"}";
 
-        mockMvc.perform(post("/api/tickets").contentType(MediaType.APPLICATION_JSON).content(purchase))
+        mockMvc.perform(post("/api/tickets").contentType(MediaType.APPLICATION_JSON).content(own))
                 .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/tickets").header("Authorization", bearer(staff))
+                        .contentType(MediaType.APPLICATION_JSON).content(own))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/tickets").header("Authorization", bearer(admin))
+                        .contentType(MediaType.APPLICATION_JSON).content(own))
+                .andExpect(status().isForbidden());
         mockMvc.perform(post("/api/tickets").header("Authorization", bearer(student))
-                        .contentType(MediaType.APPLICATION_JSON).content(purchase))
+                        .contentType(MediaType.APPLICATION_JSON).content(foreign))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+        verify(ticketService, never()).purchase(any());
+
+        mockMvc.perform(post("/api/tickets").header("Authorization", bearer(student))
+                        .contentType(MediaType.APPLICATION_JSON).content(own))
                 .andExpect(status().isCreated());
-        mockMvc.perform(patch("/api/tickets/TKT-001/cancel").header("Authorization", bearer(student)))
-                .andExpect(status().isOk());
     }
 
     @Test
-    void userLookupByEmail_isAdminOnly() throws Exception {
+    void ticketDetail_ownerAndOperatorsAllowed_otherUserForbidden() throws Exception {
+        // el ticket pertenece a andrea@example.com
+        when(ticketService.findByCode("TKT-001")).thenReturn(ticketResponse(TicketStatus.PAID));
+
+        mockMvc.perform(get("/api/tickets/TKT-001").header("Authorization", bearer(otherUser)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/tickets/TKT-001").header("Authorization", bearer(staff)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/tickets/TKT-001").header("Authorization", bearer(admin)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/tickets/TKT-001").header("Authorization", bearer(student)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.ticketCode").doesNotExist());
+        mockMvc.perform(get("/api/tickets/TKT-001"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void ticketsByUser_ownerAndAdminAllowed_othersForbidden() throws Exception {
+        when(ticketService.findByUserEmail("andrea@example.com")).thenReturn(List.of(ticketResponse(TicketStatus.PAID)));
+
+        mockMvc.perform(get("/api/tickets/by-user").param("email", "andrea@example.com")
+                        .header("Authorization", bearer(otherUser)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/tickets/by-user").param("email", "andrea@example.com")
+                        .header("Authorization", bearer(admin)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/tickets/by-user").param("email", "andrea@example.com")
+                        .header("Authorization", bearer(student)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/tickets/by-user").param("email", "andrea@example.com")
+                        .header("Authorization", bearer(staff)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void cancelTicket_onlyTheOwner() throws Exception {
+        when(ticketService.findByCode("TKT-001")).thenReturn(ticketResponse(TicketStatus.PAID));
+        when(ticketService.cancel("TKT-001")).thenReturn(ticketResponse(TicketStatus.CANCELLED));
+
+        mockMvc.perform(patch("/api/tickets/TKT-001/cancel").header("Authorization", bearer(student)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/api/tickets/TKT-001/cancel").header("Authorization", bearer(staff)))
+                .andExpect(status().isForbidden());
+        verify(ticketService, never()).cancel(any());
+
+        mockMvc.perform(patch("/api/tickets/TKT-001/cancel").header("Authorization", bearer(otherUser)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    //  usuarios: propiedad (@PreAuthorize)
+
+    @Test
+    void userLookupByEmail_ownerAndAdminAllowed_otherUserForbidden() throws Exception {
         when(userService.findByEmail("andrea@example.com")).thenReturn(userResponse("andrea"));
 
         mockMvc.perform(get("/api/users/by-email").param("email", "andrea@example.com")
-                        .header("Authorization", bearer(student)))
-                .andExpect(status().isForbidden());
+                        .header("Authorization", bearer(otherUser)))
+                .andExpect(status().isOk());
         mockMvc.perform(get("/api/users/by-email").param("email", "andrea@example.com")
                         .header("Authorization", bearer(admin)))
                 .andExpect(status().isOk());
+        mockMvc.perform(get("/api/users/by-email").param("email", "andrea@example.com")
+                        .header("Authorization", bearer(student)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("Access denied"));
+        verify(userService, org.mockito.Mockito.times(2)).findByEmail("andrea@example.com");
     }
-
-    //  method security (@PreAuthorize)
 
     @Test
     void userLookupByUsername_ownerAllowed_otherUserForbidden_adminAllowed() throws Exception {

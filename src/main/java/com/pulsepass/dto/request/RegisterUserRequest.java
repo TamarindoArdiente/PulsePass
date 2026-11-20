@@ -3,6 +3,7 @@ package com.pulsepass.dto.request;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import com.pulsepass.validation.Utf8MaxBytes;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
@@ -18,7 +19,8 @@ public record RegisterUserRequest(
         String email,
 
         @NotBlank(message = "Password is required")
-        @Size(min = 8, max = 72, message = "Password must have between 8 and 72 characters")
+        @Size(min = 12, message = "Password must have at least 12 characters")
+        @Utf8MaxBytes(value = 72, message = "Password must not exceed 72 bytes (UTF-8)")
         String password,
 
         @NotBlank(message = "First name is required")
