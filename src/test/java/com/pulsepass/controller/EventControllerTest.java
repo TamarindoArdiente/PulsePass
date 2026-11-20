@@ -19,6 +19,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import com.pulsepass.security.AccessPolicy;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -61,6 +62,9 @@ class EventControllerTest {
 
     @MockitoBean
     private TicketService ticketService;
+
+    @MockitoBean
+    private AccessPolicy accessPolicy;
 
     private EventResponse event(EventStatus status, List<ArtistResponse> artists) {
         return new EventResponse(1L, "CMF-2026", "Caribbean Music Fest 2026", "Festival de música",
@@ -153,7 +157,40 @@ class EventControllerTest {
     }
 
     @Test
+    void TEST_CTRL_EVT_003b_draftForNonOperator_returns404WithoutLeakingData() throws Exception {
+        when(accessPolicy.isOperator()).thenReturn(false);
+        when(eventService.findByCode("CMF-2026")).thenReturn(event(EventStatus.DRAFT, List.of()));
+
+        mockMvc.perform(get("/api/events/CMF-2026"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.message").value("Event not found: CMF-2026"))
+                .andExpect(jsonPath("$.name").doesNotExist());
+    }
+
+    @Test
+    void TEST_CTRL_EVT_003c_publishedForAnyone_returns200() throws Exception {
+        when(accessPolicy.isOperator()).thenReturn(false);
+        when(eventService.findByCode("CMF-2026")).thenReturn(event(EventStatus.PUBLISHED, List.of()));
+
+        mockMvc.perform(get("/api/events/CMF-2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+    }
+
+    @Test
+    void TEST_CTRL_EVT_003d_soldOutIsVisibleToAnyone_returns200() throws Exception {
+        when(accessPolicy.isOperator()).thenReturn(false);
+        when(eventService.findByCode("CMF-2026")).thenReturn(event(EventStatus.SOLD_OUT, List.of()));
+
+        mockMvc.perform(get("/api/events/CMF-2026"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SOLD_OUT"));
+    }
+
+    @Test
     void TEST_CTRL_EVT_003_findExisting_returns200() throws Exception {
+        when(accessPolicy.isOperator()).thenReturn(true);
         when(eventService.findByCode("CMF-2026")).thenReturn(event(EventStatus.DRAFT, List.of()));
 
         mockMvc.perform(get("/api/events/CMF-2026"))

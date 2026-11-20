@@ -30,13 +30,14 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(userService.register(request));
     }
 
+    @PreAuthorize("hasRole('ADMIN') or @accessPolicy.isOwnEmail(#email)")
     @GetMapping("/by-email")
     public ResponseEntity<UserResponse> findByEmail(
             @RequestParam @NotBlank(message = "Email is required") String email) {
         return ResponseEntity.ok(userService.findByEmail(email));
     }
 
-    @PreAuthorize("hasRole('ADMIN') or #username == authentication.name")
+    @PreAuthorize("hasRole('ADMIN') or @accessPolicy.isOwnUsername(#username)")
     @GetMapping("/by-username")
     public ResponseEntity<UserResponse> findByUsername(
             @RequestParam @NotBlank(message = "Username is required") String username) {

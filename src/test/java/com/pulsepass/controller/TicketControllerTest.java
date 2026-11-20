@@ -12,6 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
+import com.pulsepass.security.AccessPolicy;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -43,6 +46,9 @@ class TicketControllerTest {
 
     @MockitoBean
     private TicketService ticketService;
+
+    @MockitoBean
+    private AccessPolicy accessPolicy;
 
     private TicketResponse ticket(TicketStatus status) {
         return new TicketResponse(1L, "TKT-001", TicketType.GENERAL, new BigDecimal("100.00"), status,
@@ -174,6 +180,7 @@ class TicketControllerTest {
 
     @Test
     void TEST_CTRL_TKT_008_validCancel_returns200() throws Exception {
+        when(ticketService.findByCode("TKT-001")).thenReturn(ticket(TicketStatus.PAID));
         when(ticketService.cancel("TKT-001")).thenReturn(ticket(TicketStatus.CANCELLED));
 
         mockMvc.perform(patch("/api/tickets/TKT-001/cancel"))
@@ -185,6 +192,7 @@ class TicketControllerTest {
 
     @Test
     void TEST_CTRL_TKT_009_invalidCancel_returns409() throws Exception {
+        when(ticketService.findByCode("TKT-001")).thenReturn(ticket(TicketStatus.PAID));
         when(ticketService.cancel("TKT-001"))
                 .thenThrow(new BusinessRuleException("Only PAID tickets can be cancelled"));
 
@@ -214,5 +222,60 @@ class TicketControllerTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.message").value("Only PAID tickets can be marked as used"));
+    }
+
+    // --- Propiedad de recursos (anti-IDOR) ---
+
+    @Test
+    void TEST_CTRL_TKT_012_purchaseForAnotherEmail_returns403AndDoesNotCallService() throws Exception {
+        doThrow(new AccessDeniedException("Access denied")).when(accessPolicy).requireOwnEmail("andrea@example.com");
+
+        mockMvc.perform(post("/api/tickets").contentType(MediaType.APPLICATION_JSON).content(VALID_BODY))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.status").value(403));
+
+        verify(ticketService, never()).purchase(any(PurchaseTicketRequest.class));
+    }
+
+    @Test
+    void TEST_CTRL_TKT_013_foreignTicketDetail_returns403() throws Exception {
+        when(ticketService.findByCode("TKT-001")).thenReturn(ticket(TicketStatus.PAID));
+        doThrow(new AccessDeniedException("Access denied")).when(accessPolicy).requireOwnerOrOperator("andrea@example.com");
+
+        mockMvc.perform(get("/api/tickets/TKT-001"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.ticketCode").doesNotExist());
+    }
+
+    @Test
+    void TEST_CTRL_TKT_014_foreignTicketsByUser_returns403AndDoesNotCallService() throws Exception {
+        doThrow(new AccessDeniedException("Access denied")).when(accessPolicy).requireOwnEmail("andrea@example.com");
+
+        mockMvc.perform(get("/api/tickets/by-user").param("email", "andrea@example.com"))
+                .andExpect(status().isForbidden());
+
+        verify(ticketService, never()).findByUserEmail(any());
+    }
+
+    @Test
+    void TEST_CTRL_TKT_015_adminCanListTicketsOfAnyUser_returns200() throws Exception {
+        when(accessPolicy.hasRole("ADMIN")).thenReturn(true);
+        when(ticketService.findByUserEmail("andrea@example.com")).thenReturn(List.of(ticket(TicketStatus.PAID)));
+
+        mockMvc.perform(get("/api/tickets/by-user").param("email", "andrea@example.com"))
+                .andExpect(status().isOk());
+
+        verify(accessPolicy, never()).requireOwnEmail(any());
+    }
+
+    @Test
+    void TEST_CTRL_TKT_016_cancelForeignTicket_returns403AndDoesNotCancel() throws Exception {
+        when(ticketService.findByCode("TKT-001")).thenReturn(ticket(TicketStatus.PAID));
+        doThrow(new AccessDeniedException("Access denied")).when(accessPolicy).requireOwnEmail("andrea@example.com");
+
+        mockMvc.perform(patch("/api/tickets/TKT-001/cancel"))
+                .andExpect(status().isForbidden());
+
+        verify(ticketService, never()).cancel(any());
     }
 }

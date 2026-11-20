@@ -108,6 +108,38 @@ class UserControllerTest {
     }
 
     @Test
+    void TEST_CTRL_USR_002e_elevenCharPassword_returns400() throws Exception {
+        String body = VALID_BODY.replace("Str0ng-Passw0rd", "Abcdefgh1!x");
+
+        mockMvc.perform(post("/api/users").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.password").exists());
+
+        verify(userService, never()).register(any());
+    }
+
+    @Test
+    void TEST_CTRL_USR_002f_passwordOver72Bytes_returns400() throws Exception {
+        // 40 caracteres con tilde = 80 bytes en UTF-8 (supera el límite de BCrypt aunque tenga menos de 72 caracteres)
+        String body = VALID_BODY.replace("Str0ng-Passw0rd", "\u00e1".repeat(40));
+
+        mockMvc.perform(post("/api/users").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details.password").exists());
+
+        verify(userService, never()).register(any());
+    }
+
+    @Test
+    void TEST_CTRL_USR_002g_twelveCharPassword_isAccepted() throws Exception {
+        when(userService.register(any())).thenReturn(andrea());
+        String body = VALID_BODY.replace("Str0ng-Passw0rd", "Abcdefgh1!xy");
+
+        mockMvc.perform(post("/api/users").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
     void TEST_CTRL_USR_002c_malformedJson_returns400AndDoesNotCallService() throws Exception {
         mockMvc.perform(post("/api/users").contentType(MediaType.APPLICATION_JSON).content("{ not json"))
                 .andExpect(status().isBadRequest())

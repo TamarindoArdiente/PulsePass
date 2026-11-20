@@ -3,7 +3,10 @@ package com.pulsepass.controller;
 import com.pulsepass.dto.request.CreateEventRequest;
 import com.pulsepass.dto.response.EventResponse;
 import com.pulsepass.dto.response.EventSummaryResponse;
+import com.pulsepass.domain.EventStatus;
 import com.pulsepass.dto.response.TicketResponse;
+import com.pulsepass.exception.ResourceNotFoundException;
+import com.pulsepass.security.AccessPolicy;
 import com.pulsepass.service.EventService;
 import com.pulsepass.service.TicketService;
 import jakarta.validation.Valid;
@@ -27,10 +30,12 @@ public class EventController {
 
     private final EventService eventService;
     private final TicketService ticketService;
+    private final AccessPolicy accessPolicy;
 
-    public EventController(EventService eventService, TicketService ticketService) {
+    public EventController(EventService eventService, TicketService ticketService, AccessPolicy accessPolicy) {
         this.eventService = eventService;
         this.ticketService = ticketService;
+        this.accessPolicy = accessPolicy;
     }
 
     @PostMapping
@@ -40,7 +45,14 @@ public class EventController {
 
     @GetMapping("/{eventCode}")
     public ResponseEntity<EventResponse> findByCode(@PathVariable String eventCode) {
-        return ResponseEntity.ok(eventService.findByCode(eventCode));
+        EventResponse event = eventService.findByCode(eventCode);
+
+        // Un borrador solo lo ven STAFF/ADMIN; para el resto responde igual que un evento inexistente (404),
+        // sin revelar que existe ni ninguno de sus datos.
+        if (event.status() == EventStatus.DRAFT && !accessPolicy.isOperator()) {
+            throw new ResourceNotFoundException("Event not found: " + eventCode);
+        }
+        return ResponseEntity.ok(event);
     }
 
     @GetMapping("/published")
