@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="3 3 34 34">
+  <!-- Mismo dibujo que components/layout/Logo.tsx. Colores del tema claro (Coachella); en pestañas
+       con tema oscuro del sistema cambia a los del modo disco. -->
+  <style>
+    .a { stop-color: #ff7a2f }
+    .b { stop-color: #e8336d }
+    .l { stroke: #2b1208 }
+    @media (prefers-color-scheme: dark) {
+      .a { stop-color: #ff3ddb }
+      .b { stop-color: #2ee6ff }
+      .l { stroke: #1a0522 }
+    }
+  </style>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop class="a" offset="0" />
+      <stop class="b" offset="1" />
+    </linearGradient>
+  </defs>
+  <path d="M6 8h28a2 2 0 0 1 2 2v5.5a4.5 4.5 0 0 0 0 9V30a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-5.5a4.5 4.5 0 0 0 0-9V10a2 2 0 0 1 2-2Z" fill="url(#g)" />
+  <path class="l" d="M8 20.5h6l2.6-7.5 4.4 14 3-9.5 1.6 3H32" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

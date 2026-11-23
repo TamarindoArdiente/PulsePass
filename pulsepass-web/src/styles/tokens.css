@@ -1,0 +1,59 @@
+:root {
+  color-scheme: light;
+
+  /* Lienzo */
+  --fondo: #fff3e0; 
+  --fondo-2: #ffe7c7; 
+  --superficie: #fffaf2; 
+  --superficie-2: #ffeed6; 
+  --borde: #f0cfa6;
+
+  /* Texto */
+  --tinta: #3a1d12; 
+  --tinta-suave: #7a5444;
+  --tinta-sobre-primario: #2b1208;
+
+  /* Marca */
+  --primario: #ff7a2f; 
+  --primario-hover: #ff9147;
+  --acento: #e8336d; 
+  --acento-2: #0e7c70; 
+  --foco: #c2410c;
+
+  /* Degradados */
+  --degradado-hero: linear-gradient(120deg, #ffb627 0%, #ff6b2c 48%, #e8336d 100%);
+  --astro-fondo: radial-gradient(circle at 35% 30%, #fff1b8 0%, #ffc233 38%, #ff7a2f 100%);
+  --astro-brillo: 0 0 90px 20px rgb(255 160 40 / 0.55);
+  --astro-facetas: 0;
+
+
+  --sombra: 0 1px 0 rgb(58 29 18 / 0.06), 0 10px 30px -12px rgb(122 84 68 / 0.35);
+}
+
+:root.dark {
+  color-scheme: dark;
+
+  --fondo: #10031c; /* noche */
+  --fondo-2: #1a0830;
+  --superficie: #1c0a33;
+  --superficie-2: #2a0f4a;
+  --borde: #4b2480;
+
+  --tinta: #fbf1ff;
+  --tinta-suave: #c9a9e3;
+  --tinta-sobre-primario: #1a0522;
+
+  --primario: #ff3ddb; 
+  --primario-hover: #ff6be4;
+  --acento: #2ee6ff; 
+  --acento-2: #ffe45e; 
+  --foco: #ffe45e;
+
+  --degradado-hero: linear-gradient(120deg, #5b21b6 0%, #c026d3 45%, #ff3ddb 72%, #22d3ee 100%);
+  --astro-fondo: radial-gradient(circle at 35% 30%, #ffffff 0%, #d6c4ff 25%, #8b5cf6 62%, #3b0f7a 100%);
+  --astro-brillo: 0 0 110px 24px rgb(255 61 219 / 0.5), 0 0 40px 6px rgb(46 230 255 / 0.45);
+  --astro-facetas: 0.55;
+
+
+  --sombra: 0 0 0 1px rgb(255 61 219 / 0.08), 0 12px 40px -14px rgb(255 61 219 / 0.45);
+}
