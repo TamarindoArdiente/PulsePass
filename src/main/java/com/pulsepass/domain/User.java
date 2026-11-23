@@ -13,7 +13,7 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "username", nullable = false, unique = true)
+    @Column(name = "user_name", nullable = false, unique = true)
     private String username;
 
     @Column(name = "email", nullable = false, unique = true)
@@ -21,6 +21,13 @@ public class User {
 
     @Column(name = "active", nullable = false)
     private boolean active;
+
+    @Column(name = "password")
+    private String password;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false)
+    private UserRole role = UserRole.USER;
 
     @OneToOne(
             mappedBy = "user",
@@ -74,6 +81,22 @@ public class User {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public UserRole getRole() {
+        return role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role;
     }
 
     public UserProfile getUserProfile() {
